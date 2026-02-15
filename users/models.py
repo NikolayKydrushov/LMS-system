@@ -1,5 +1,6 @@
 from django.contrib.auth.models import AbstractUser, BaseUserManager
 from django.db import models
+from django.contrib.auth import get_user_model
 from materials.models import Course, Lesson
 
 # Create your models here.
@@ -50,9 +51,8 @@ class User(AbstractUser):
     avatar = models.ImageField(upload_to='users/avatars/', verbose_name='Аватар', blank=True, null=True)
 
     USERNAME_FIELD = 'email'
-    REQUIRED_FIELDS = []  # Обязательные поля при создании superuser (кроме email и пароля)
+    REQUIRED_FIELDS = []
 
-    # Подключаем кастомный менеджер - ЭТО КЛЮЧЕВОЙ МОМЕНТ!
     objects = CustomUserManager()
 
     class Meta:
@@ -65,35 +65,34 @@ class User(AbstractUser):
 
 class Payment(models.Model):
     """
-    Модель платежей пользователей
+    Модель платежа
     """
-
-    class PaymentMethod(models.TextChoices):
-        """Класс для выбора способа оплаты"""
-        CASH = 'cash', 'Наличные'
-        TRANSFER = 'transfer', 'Перевод на счет'
+    PAYMENT_METHODS = [
+        ('cash', 'Наличные'),
+        ('transfer', 'Перевод'),
+    ]
 
     user = models.ForeignKey(
-        User,
+        get_user_model(),
         on_delete=models.CASCADE,
         related_name='payments',
         verbose_name='Пользователь'
     )
     payment_date = models.DateTimeField(
         auto_now_add=True,
-        verbose_name='Дата оплаты'
+        verbose_name='Дата платежа'
     )
     paid_course = models.ForeignKey(
-        Course,
-        on_delete=models.SET_NULL,  # Если курс удалят, платеж останется
+        'materials.Course',
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='payments',
         verbose_name='Оплаченный курс'
     )
     paid_lesson = models.ForeignKey(
-        Lesson,
-        on_delete=models.SET_NULL,  # Если урок удалят, платеж останется
+        'materials.Lesson',
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name='payments',
@@ -106,8 +105,7 @@ class Payment(models.Model):
     )
     payment_method = models.CharField(
         max_length=10,
-        choices=PaymentMethod.choices,
-        default=PaymentMethod.CASH,
+        choices=PAYMENT_METHODS,
         verbose_name='Способ оплаты'
     )
 
@@ -117,7 +115,6 @@ class Payment(models.Model):
         ordering = ['-payment_date']  # Сортировка по дате (сначала новые)
 
     def __str__(self):
-        # Определяем, что было оплачено: курс или урок
         if self.paid_course:
             item = f"курс {self.paid_course.title}"
         elif self.paid_lesson:

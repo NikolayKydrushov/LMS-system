@@ -1,53 +1,68 @@
+
 from django.core.management.base import BaseCommand
-from users.models import User, Payment
+from django.contrib.auth.models import Group, Permission
+from django.contrib.contenttypes.models import ContentType
 from materials.models import Course, Lesson
-from datetime import datetime, timedelta
-import random
+
 
 class Command(BaseCommand):
-    help = 'Создание тестовых платежей'
+    help = 'Создание группы модераторов и назначение прав'
 
     def handle(self, *args, **kwargs):
-        # Проверяем, есть ли пользователи, курсы и уроки
-        users = User.objects.all()
-        courses = Course.objects.all()
-        lessons = Lesson.objects.all()
+        # Создаем группу модераторов
+        moder_group, created = Group.objects.get_or_create(name='Модераторы')
 
-        if not users.exists():
-            self.stdout.write(self.style.ERROR('Нет пользователей в базе'))
-            return
+        if created:
+            self.stdout.write(self.style.SUCCESS('Группа "Модераторы" создана'))
+        else:
+            self.stdout.write(self.style.WARNING('Группа "Модераторы" уже существует'))
 
-        if not courses.exists() or not lessons.exists():
-            self.stdout.write(self.style.WARNING('Нет курсов или уроков'))
-            return
+        # Получаем content types для моделей
+        course_content_type = ContentType.objects.get_for_model(Course)
+        lesson_content_type = ContentType.objects.get_for_model(Lesson)
 
-        # Очищаем существующие платежи (опционально)
-        Payment.objects.all().delete()
+        # Определяем права для модераторов
+        # Модераторы могут просматривать и редактировать, но не создавать и не удалять
 
-        # Создаем тестовые платежи
-        for user in users:
-            # Платеж за курс
-            if courses.exists():
-                course = random.choice(courses)
-                Payment.objects.create(
-                    user=user,
-                    paid_course=course,
-                    amount=random.uniform(1000, 50000),
-                    payment_method=random.choice(['cash', 'transfer']),
-                    payment_date=datetime.now() - timedelta(days=random.randint(1, 30))
+        # Права для курсов
+        course_permissions = [
+            'view_course',  # Просмотр
+            'change_course',  # Редактирование
+        ]
+
+        # Права для уроков
+        lesson_permissions = [
+            'view_lesson',  # Просмотр
+            'change_lesson',  # Редактирование
+        ]
+
+        # Очищаем старые права (чтобы обновить, если меняли)
+        moder_group.permissions.clear()
+
+        # Добавляем права на просмотр курсов
+        for codename in course_permissions:
+            try:
+                permission = Permission.objects.get(
+                    content_type=course_content_type,
+                    codename=codename
                 )
+                moder_group.permissions.add(permission)
+                self.stdout.write(f'Добавлено право: {codename}')
+            except Permission.DoesNotExist:
+                self.stdout.write(self.style.ERROR(f'Право {codename} не найдено'))
 
-            # Платеж за урок
-            if lessons.exists():
-                lesson = random.choice(lessons)
-                Payment.objects.create(
-                    user=user,
-                    paid_lesson=lesson,
-                    amount=random.uniform(500, 5000),
-                    payment_method=random.choice(['cash', 'transfer']),
-                    payment_date=datetime.now() - timedelta(days=random.randint(1, 30))
+        # Добавляем права на просмотр уроков
+        for codename in lesson_permissions:
+            try:
+                permission = Permission.objects.get(
+                    content_type=lesson_content_type,
+                    codename=codename
                 )
+                moder_group.permissions.add(permission)
+                self.stdout.write(f'Добавлено право: {codename}')
+            except Permission.DoesNotExist:
+                self.stdout.write(self.style.ERROR(f'Право {codename} не найдено'))
 
         self.stdout.write(
-            self.style.SUCCESS(f'Успешно создано {Payment.objects.count()} платежей')
+            self.style.SUCCESS(f'Группа "Модераторы" настроена. Всего прав: {moder_group.permissions.count()}')
         )
