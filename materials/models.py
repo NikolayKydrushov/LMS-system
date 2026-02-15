@@ -1,6 +1,8 @@
-from django.db import models
+# materials/models.py
 
-# Create your models here.
+from django.db import models
+from django.conf import settings  # для получения модели пользователя
+
 
 class Course(models.Model):
     """
@@ -9,6 +11,15 @@ class Course(models.Model):
     title = models.CharField(max_length=200, verbose_name='Название')
     preview = models.ImageField(upload_to='courses/previews/', verbose_name='Превью', blank=True, null=True)
     description = models.TextField(verbose_name='Описание', blank=True)
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='courses',
+        verbose_name='Владелец'
+    )
 
     class Meta:
         verbose_name = 'Курс'
@@ -27,8 +38,21 @@ class Lesson(models.Model):
     preview = models.ImageField(upload_to='lessons/previews/', verbose_name='Превью', blank=True, null=True)
     video_link = models.URLField(verbose_name='Ссылка на видео', blank=True)
 
-    # Связь с курсом (один курс - много уроков)
-    course = models.ForeignKey(Course, on_delete=models.CASCADE, related_name='lessons', verbose_name='Курс')
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        related_name='lessons',
+        verbose_name='Курс'
+    )
+
+    owner = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='lessons',
+        verbose_name='Владелец'
+    )
 
     class Meta:
         verbose_name = 'Урок'
@@ -36,4 +60,3 @@ class Lesson(models.Model):
 
     def __str__(self):
         return self.title
-
