@@ -47,9 +47,9 @@ class CourseViewSet(viewsets.ViewSet):
     def list(self, request):
         """Получение списка всех курсов с пагинацией"""
         if IsModerator().has_permission(request, self):
-            queryset = Course.objects.all()
+            queryset = Course.objects.all().order_by('-id')  # Добавлена сортировка
         else:
-            queryset = Course.objects.filter(owner=request.user)
+            queryset = Course.objects.filter(owner=request.user).order_by('-id')
 
         # Применяем пагинацию
         paginator = self.pagination_class()
@@ -172,9 +172,9 @@ class LessonListCreateView(generics.ListCreateAPIView):
         Фильтруем queryset в зависимости от прав пользователя
         """
         if IsModerator().has_permission(self.request, self):
-            return Lesson.objects.all()
+            return Lesson.objects.all().order_by('-id')
         else:
-            return Lesson.objects.filter(owner=self.request.user)
+            return Lesson.objects.filter(owner=self.request.user).order_by('-id')
 
     def perform_create(self, serializer):
         """
