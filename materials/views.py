@@ -3,8 +3,14 @@ from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
-from materials.models import Course, Lesson
-from materials.serializers import CourseSerializer, LessonSerializer
+from rest_framework.views import APIView
+from materials.models import Course, Lesson, Subscription
+from materials.serializers import (
+    CourseSerializer,
+    LessonSerializer,
+    SubscriptionSerializer
+)
+from materials.paginators import CoursePaginator, LessonPaginator
 from users.permissions import IsModerator, IsOwner
 
 
@@ -18,6 +24,9 @@ class CourseViewSet(viewsets.ViewSet):
     - partial_update: частичное обновление (модераторы могут любые, обычные - только свои)
     - destroy: удаление курса (модераторам запрещено, обычные - только свои)
     """
+
+    # Пагинатор для курсов
+    pagination_class = CoursePaginator
 
     def get_permissions(self):
         """
@@ -36,15 +45,30 @@ class CourseViewSet(viewsets.ViewSet):
         return [permission() for permission in permission_classes]
 
     def list(self, request):
-        """Получение списка всех курсов"""
+        """Получение списка всех курсов с пагинацией"""
         if IsModerator().has_permission(request, self):
-            # Модераторы видят все курсы
             queryset = Course.objects.all()
         else:
-            # Обычные пользователи видят только свои курсы
             queryset = Course.objects.filter(owner=request.user)
 
-        serializer = CourseSerializer(queryset, many=True)
+        # Применяем пагинацию
+        paginator = self.pagination_class()
+        page = paginator.paginate_queryset(queryset, request)
+
+        if page is not None:
+            serializer = CourseSerializer(
+                page,
+                many=True,
+                context={'request': request}
+            )
+            return paginator.get_paginated_response(serializer.data)
+
+        # Если пагинация отключена (на всякий случай)
+        serializer = CourseSerializer(
+            queryset,
+            many=True,
+            context={'request': request}
+        )
         return Response(serializer.data)
 
     def retrieve(self, request, pk=None):
@@ -52,11 +76,14 @@ class CourseViewSet(viewsets.ViewSet):
         queryset = Course.objects.all()
         course = get_object_or_404(queryset, pk=pk)
 
-        # Проверка прав доступа к объекту
         if not (IsModerator().has_permission(request, self) or course.owner == request.user):
             raise PermissionDenied("У вас нет прав для просмотра этого курса")
 
-        serializer = CourseSerializer(course)
+        # Передаем request в контекст сериализатора
+        serializer = CourseSerializer(
+            course,
+            context={'request': request}  # Добавляем контекст
+        )
         return Response(serializer.data)
 
     def create(self, request):
@@ -125,16 +152,15 @@ class LessonListCreateView(generics.ListCreateAPIView):
     - создание нового урока (только для не-модераторов)
     """
     serializer_class = LessonSerializer
+    pagination_class = LessonPaginator  # Пагинатор для уроков
 
     def get_permissions(self):
         """
         Определяем права доступа для разных методов
         """
         if self.request.method == 'GET':
-            # Просмотр списка доступен всем авторизованным
             permission_classes = [IsAuthenticated]
         elif self.request.method == 'POST':
-            # Создание урока запрещено модераторам
             permission_classes = [IsAuthenticated, ~IsModerator]
         else:
             permission_classes = [IsAuthenticated]
@@ -146,10 +172,8 @@ class LessonListCreateView(generics.ListCreateAPIView):
         Фильтруем queryset в зависимости от прав пользователя
         """
         if IsModerator().has_permission(self.request, self):
-            # Модераторы видят все уроки
             return Lesson.objects.all()
         else:
-            # Обычные пользователи видят только свои уроки
             return Lesson.objects.filter(owner=self.request.user)
 
     def perform_create(self, serializer):
@@ -183,13 +207,11 @@ class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
         # Проверяем права доступа к объекту
         if self.request.method == 'DELETE':
-            # Для удаления: только владелец (модераторам запрещено)
             if IsModerator().has_permission(self.request, self):
                 raise PermissionDenied("Модераторы не могут удалять уроки")
             if obj.owner != self.request.user:
                 raise PermissionDenied("Вы можете удалять только свои уроки")
         else:
-            # Для просмотра и редактирования: модератор ИЛИ владелец
             if not (IsModerator().has_permission(self.request, self) or obj.owner == self.request.user):
                 raise PermissionDenied("У вас нет прав для доступа к этому уроку")
 
@@ -200,3 +222,86 @@ class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         При обновлении сохраняем владельца (не меняем)
         """
         serializer.save()
+
+
+class SubscriptionView(APIView):
+    """
+    Эндпоинт для управления подпиской на курс:
+    - POST: подписаться на курс
+    - DELETE: отписаться от курса
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        """
+        Подписка на курс
+        Ожидаем JSON: {"course_id": 1}
+        """
+        course_id = request.data.get('course_id')
+
+        if not course_id:
+            return Response(
+                {'error': 'Необходимо указать course_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Проверяем, существует ли курс
+        try:
+            course = Course.objects.get(id=course_id)
+        except Course.DoesNotExist:
+            return Response(
+                {'error': 'Курс не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Проверяем, есть ли уже подписка
+        subscription, created = Subscription.objects.get_or_create(
+            user=request.user,
+            course=course
+        )
+
+        if created:
+            serializer = SubscriptionSerializer(subscription)
+            return Response(
+                {
+                    'message': f'Вы успешно подписались на курс "{course.title}"',
+                    'subscription': serializer.data
+                },
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            return Response(
+                {'error': 'Вы уже подписаны на этот курс'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    def delete(self, request, *args, **kwargs):
+        """
+        Отписка от курса
+        Ожидаем JSON: {"course_id": 1} или получаем course_id из query params
+        """
+        # Можно получать course_id из тела запроса или из query параметров
+        course_id = request.data.get('course_id') or request.query_params.get('course_id')
+
+        if not course_id:
+            return Response(
+                {'error': 'Необходимо указать course_id'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Ищем и удаляем подписку
+        deleted_count, _ = Subscription.objects.filter(
+            user=request.user,
+            course_id=course_id
+        ).delete()
+
+        if deleted_count > 0:
+            return Response(
+                {'message': 'Вы успешно отписались от курса'},
+                status=status.HTTP_204_NO_CONTENT
+            )
+        else:
+            return Response(
+                {'error': 'Подписка не найдена'},
+                status=status.HTTP_404_NOT_FOUND
+            )
