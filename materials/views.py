@@ -4,16 +4,61 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.views import APIView
-from materials.models import Course, Lesson, Subscription
+from materials.models import Course, Lesson, Subscription, Payment
 from materials.serializers import (
     CourseSerializer,
     LessonSerializer,
-    SubscriptionSerializer
+    SubscriptionSerializer, PaymentCreateSerializer, PaymentSerializer
 )
 from materials.paginators import CoursePaginator, LessonPaginator
+from materials.services.payment_service import PaymentService
 from users.permissions import IsModerator, IsOwner
 
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter, OpenApiExample
+from drf_spectacular.types import OpenApiTypes
 
+
+@extend_schema_view(
+    list=extend_schema(
+        summary="Список курсов",
+        description="Возвращает список курсов. Модераторы видят все курсы, обычные пользователи - только свои.",
+        responses={200: CourseSerializer(many=True)},
+        tags=['Курсы']
+    ),
+    retrieve=extend_schema(
+        summary="Детальная информация о курсе",
+        description="Получение подробной информации о конкретном курсе по ID.",
+        responses={200: CourseSerializer, 403: OpenApiTypes.OBJECT},
+        tags=['Курсы']
+    ),
+    create=extend_schema(
+        summary="Создание курса",
+        description="Создание нового курса. Доступно только для пользователей без прав модератора.",
+        request=CourseSerializer,
+        responses={201: CourseSerializer, 400: OpenApiTypes.OBJECT},
+        tags=['Курсы']
+    ),
+    update=extend_schema(
+        summary="Полное обновление курса",
+        description="Полное обновление информации о курсе.",
+        request=CourseSerializer,
+        responses={200: CourseSerializer, 403: OpenApiTypes.OBJECT},
+        tags=['Курсы']
+    ),
+    partial_update=extend_schema(
+        summary="Частичное обновление курса",
+        description="Частичное обновление информации о курсе.",
+        request=CourseSerializer,
+        responses={200: CourseSerializer, 403: OpenApiTypes.OBJECT},
+        tags=['Курсы']
+    ),
+    destroy=extend_schema(
+        summary="Удаление курса",
+        description="Удаление курса. Доступно только владельцу курса, модераторам запрещено.",
+        responses={204: None, 403: OpenApiTypes.OBJECT},
+        tags=['Курсы']
+    ),
+)
 class CourseViewSet(viewsets.ViewSet):
     """
     ViewSet для работы с курсами:
@@ -145,6 +190,21 @@ class CourseViewSet(viewsets.ViewSet):
             raise PermissionDenied("Курс не найден")
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Список уроков",
+        description="Возвращает список уроков с пагинацией. Модераторы видят все уроки, обычные пользователи - только свои.",
+        responses={200: LessonSerializer(many=True)},
+        tags=['Уроки']
+    ),
+    post=extend_schema(
+        summary="Создание урока",
+        description="Создание нового урока. Доступно только для пользователей без прав модератора.",
+        request=LessonSerializer,
+        responses={201: LessonSerializer, 400: OpenApiTypes.OBJECT},
+        tags=['Уроки']
+    ),
+)
 class LessonListCreateView(generics.ListCreateAPIView):
     """
     Generic-класс для уроков:
@@ -183,6 +243,34 @@ class LessonListCreateView(generics.ListCreateAPIView):
         serializer.save(owner=self.request.user)
 
 
+@extend_schema_view(
+    get=extend_schema(
+        summary="Детальная информация об уроке",
+        description="Получение подробной информации о конкретном уроке.",
+        responses={200: LessonSerializer, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        tags=['Уроки']
+    ),
+    put=extend_schema(
+        summary="Полное обновление урока",
+        description="Полное обновление информации об уроке.",
+        request=LessonSerializer,
+        responses={200: LessonSerializer, 403: OpenApiTypes.OBJECT},
+        tags=['Уроки']
+    ),
+    patch=extend_schema(
+        summary="Частичное обновление урока",
+        description="Частичное обновление информации об уроке.",
+        request=LessonSerializer,
+        responses={200: LessonSerializer, 403: OpenApiTypes.OBJECT},
+        tags=['Уроки']
+    ),
+    delete=extend_schema(
+        summary="Удаление урока",
+        description="Удаление урока. Доступно только владельцу урока, модераторам запрещено.",
+        responses={204: None, 403: OpenApiTypes.OBJECT, 404: OpenApiTypes.OBJECT},
+        tags=['Уроки']
+    ),
+)
 class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     """
     Generic-класс для уроков:
@@ -224,6 +312,10 @@ class LessonRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         serializer.save()
 
 
+
+@extend_schema(
+    tags=['Подписки']
+)
 class SubscriptionView(APIView):
     """
     Эндпоинт для управления подпиской на курс:
@@ -232,6 +324,31 @@ class SubscriptionView(APIView):
     """
     permission_classes = [IsAuthenticated]
 
+    @extend_schema(
+        summary="Подписка на курс",
+        description="Создает подписку текущего пользователя на указанный курс.",
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'course_id': {'type': 'integer', 'description': 'ID курса'}
+                },
+                'required': ['course_id']
+            }
+        },
+        responses={
+            201: SubscriptionSerializer,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT
+        },
+        examples=[
+            OpenApiExample(
+                'Пример запроса',
+                value={'course_id': 1},
+                request_only=True,
+            )
+        ]
+    )
     def post(self, request, *args, **kwargs):
         """
         Подписка на курс
@@ -275,6 +392,32 @@ class SubscriptionView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+    @extend_schema(
+        summary="Отписка от курса",
+        description="Удаляет подписку текущего пользователя на указанный курс.",
+        parameters=[
+            OpenApiParameter(
+                name='course_id',
+                type=int,
+                location=OpenApiParameter.QUERY,
+                description='ID курса (можно также передать в теле запроса)',
+                required=False,
+            )
+        ],
+        request={
+            'application/json': {
+                'type': 'object',
+                'properties': {
+                    'course_id': {'type': 'integer'}
+                }
+            }
+        },
+        responses={
+            204: None,
+            400: OpenApiTypes.OBJECT,
+            404: OpenApiTypes.OBJECT
+        }
+    )
     def delete(self, request, *args, **kwargs):
         """
         Отписка от курса
@@ -305,3 +448,189 @@ class SubscriptionView(APIView):
                 {'error': 'Подписка не найдена'},
                 status=status.HTTP_404_NOT_FOUND
             )
+
+
+@extend_schema(
+    tags=['Платежи']
+)
+class PaymentListCreateView(generics.ListCreateAPIView):
+    """
+    View для создания и просмотра платежей
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.request.method == 'POST':
+            return PaymentCreateSerializer
+        return PaymentSerializer
+
+    def get_queryset(self):
+        """Возвращаем только платежи текущего пользователя"""
+        return Payment.objects.filter(user=self.request.user).select_related('course', 'user')
+
+    @extend_schema(
+        summary="Создание платежа",
+        description="Создает новый платеж и возвращает ссылку на оплату через Stripe",
+        request=PaymentCreateSerializer,
+        responses={
+            201: PaymentSerializer,
+            400: OpenApiTypes.OBJECT,
+            403: OpenApiTypes.OBJECT
+        }
+    )
+    def post(self, request, *args, **kwargs):
+        """Создание платежа"""
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        # Создаем платеж через сервис
+        payment_data = PaymentService.create_payment(
+            user=request.user,
+            course=serializer.validated_data['course'],
+            amount=serializer.validated_data['amount'],
+            payment_method=serializer.validated_data.get('payment_method', 'card')
+        )
+
+        if payment_data['success']:
+            response_serializer = PaymentSerializer(payment_data['payment'])
+            return Response(
+                {
+                    'payment': response_serializer.data,
+                    'payment_url': payment_data['payment_url']
+                },
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            return Response(
+                {'error': payment_data['error']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+@extend_schema(
+    tags=['Платежи']
+)
+class PaymentDetailView(generics.RetrieveAPIView):
+    """
+    View для просмотра деталей платежа
+    """
+    serializer_class = PaymentSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Payment.objects.filter(user=self.request.user)
+
+
+@extend_schema(
+    tags=['Платежи'],
+    parameters=[
+        OpenApiParameter(
+            name='payment_id',
+            type=int,
+            location=OpenApiParameter.PATH,
+            description='ID платежа в системе'
+        )
+    ],
+    responses={
+        200: OpenApiTypes.OBJECT,
+        400: OpenApiTypes.OBJECT,
+        404: OpenApiTypes.OBJECT
+    }
+)
+class PaymentStatusCheckView(APIView):
+    """
+    View для проверки статуса платежа
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, payment_id):
+        """Проверка статуса платежа"""
+        # Проверяем, принадлежит ли платеж текущему пользователю
+        try:
+            payment = Payment.objects.get(id=payment_id, user=request.user)
+        except Payment.DoesNotExist:
+            return Response(
+                {'error': 'Платеж не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Проверяем статус через сервис
+        result = PaymentService.check_payment_status(payment_id)
+
+        if result['success']:
+            serializer = PaymentSerializer(result['payment'])
+            return Response({
+                'payment': serializer.data,
+                'stripe_status': result.get('stripe_status')
+            })
+        else:
+            return Response(
+                {'error': result['error']},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+
+@extend_schema(
+    tags=['Платежи'],
+    parameters=[
+        OpenApiParameter(
+            name='session_id',
+            type=str,
+            location=OpenApiParameter.QUERY,
+            description='ID сессии Stripe'
+        )
+    ],
+    responses={
+        200: OpenApiTypes.OBJECT,
+        400: OpenApiTypes.OBJECT
+    }
+)
+class PaymentSuccessView(APIView):
+    """
+    View для обработки успешной оплаты (редирект из Stripe)
+    """
+    permission_classes = []  # Открытый доступ для редиректов
+
+    def get(self, request):
+        session_id = request.GET.get('session_id')
+
+        if not session_id:
+            return Response(
+                {'error': 'Session ID не предоставлен'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        # Ищем платеж по session_id
+        try:
+            payment = Payment.objects.get(stripe_session_id=session_id)
+        except Payment.DoesNotExist:
+            return Response(
+                {'error': 'Платеж не найден'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        # Обновляем статус платежа
+        payment.status = Payment.PaymentStatus.PAID
+        payment.save()
+
+        return Response({
+            'message': 'Платеж успешно выполнен',
+            'course_id': payment.course.id,
+            'course_title': payment.course.title
+        })
+
+
+@extend_schema(
+    tags=['Платежи'],
+    responses={200: OpenApiTypes.OBJECT}
+)
+class PaymentCancelView(APIView):
+    """
+    View для обработки отмены оплаты
+    """
+    permission_classes = []
+
+    def get(self, request):
+        return Response({
+            'message': 'Оплата была отменена'
+        })

@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    'drf_spectacular',
     'rest_framework_simplejwt',
     'django_filters',
     'users',
@@ -138,4 +139,21 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',  # Все эндпоинты требуют авторизации
     ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'API для обучения',  # Название проекта
+    'DESCRIPTION': 'Документация API для платформы с курсами и уроками',  # Описание
+    'VERSION': '1.0.0',  # Версия API
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Другие настройки
+    'COMPONENT_SPLIT_REQUEST': True,
+}
+
+
+# Настройки Stripe
+STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
