@@ -1,6 +1,6 @@
 
 from rest_framework import serializers
-from materials.models import Course, Lesson, Subscription
+from materials.models import Course, Lesson, Subscription, Payment
 from materials.validators import validate_youtube_url
 
 
@@ -63,4 +63,61 @@ class CourseSerializer(serializers.ModelSerializer):
                 course=obj
             ).exists()
         return False
+
+
+class PaymentSerializer(serializers.ModelSerializer):
+    """
+    Сериализатор для модели платежа
+    """
+    course_title = serializers.CharField(source='course.title', read_only=True)
+    user_email = serializers.CharField(source='user.email', read_only=True)
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id', 'user', 'user_email', 'course', 'course_title',
+            'amount', 'payment_method', 'status', 'payment_url',
+            'stripe_session_id', 'created_at'
+        ]
+        read_only_fields = [
+            'user', 'status', 'payment_url', 'stripe_session_id',
+            'stripe_product_id', 'stripe_price_id', 'created_at'
+        ]
+
+
+class PaymentCreateSerializer(serializers.ModelSerializer):
+    """
+    Сериализатор для создания платежа
+    """
+
+    class Meta:
+        model = Payment
+        fields = ['course', 'amount', 'payment_method']
+
+    def validate(self, data):
+        """
+        Проверяем, что курс существует и не принадлежит текущему пользователю
+        """
+        request = self.context.get('request')
+        course = data.get('course')
+
+        # Проверка на покупку своего курса
+        if course.owner == request.user:
+            raise serializers.ValidationError(
+                "Вы не можете оплатить свой собственный курс"
+            )
+
+        # Проверяем, нет ли уже оплаченного платежа за этот курс
+        existing_payment = Payment.objects.filter(
+            user=request.user,
+            course=course,
+            status=Payment.PaymentStatus.PAID
+        ).exists()
+
+        if existing_payment:
+            raise serializers.ValidationError(
+                "Вы уже оплатили этот курс"
+            )
+
+        return data
 
