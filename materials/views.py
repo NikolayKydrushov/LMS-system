@@ -151,6 +151,11 @@ class CourseViewSet(viewsets.ViewSet):
         serializer = CourseSerializer(course, data=request.data)
         if serializer.is_valid():
             serializer.save()
+
+            # Асинхронная отправка уведомлений подписчикам
+            # Вызываем задачу Celery
+            notify_course_subscribers.delay(course.id)
+
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -165,6 +170,11 @@ class CourseViewSet(viewsets.ViewSet):
         serializer = CourseSerializer(course, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
+
+            # Асинхронная отправка уведомлений подписчикам
+            # Вызываем задачу Celery
+            notify_course_subscribers.delay(course.id)
+
             return Response(serializer.data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
