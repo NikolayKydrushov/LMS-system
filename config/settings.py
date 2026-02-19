@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+
+from celery.schedules import crontab
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -157,3 +159,33 @@ STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
 BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = os.getenv('REDIS_PORT', '6379')
+REDIS_DB = os.getenv('REDIS_DB', '0')
+
+# URL для подключения к Redis
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+CELERY_BEAT_SCHEDULE = {
+    'block-inactive-users-daily': {
+        'task': 'users.tasks.block_inactive_users',
+        'schedule': crontab(hour=3, minute=0),
+        'options': {
+            'expires': 3600,
+        }
+    },
+}
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.yandex.ru'
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
+EMAIL_HOST_USER = 'kolya29042909@yandex.ru'
+ADMIN_EMAIL = 'kolya29042909@yandex.ru'
+EMAIL_HOST_PASSWORD = 'dddxlqwyvfxhljrj'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+DEFAULT_FROM_EMAIL = 'kolya29042909@yandex.ru'
