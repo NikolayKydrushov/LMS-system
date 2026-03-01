@@ -148,7 +148,6 @@ activemq-data/
 *.sage.py
 
 # Environments
-.env
 .envrc
 .venv
 env/
@@ -215,3 +214,46 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Docker
+docker-compose.override.yml
+.dockerignore
+Dockerfile.dev
+*.dockerfile
+.docker/
+
+# Environment templates (keep .env.template, ignore everything else .env*)
+.env
+.env.*
+!.env.template
+!.env.sample
+!.env.example
+
+# Local development
+.local/
+.devcontainer/
+.vscode/
+.idea/
+
+# Static and media files (already covered but making explicit)
+/static/
+/media/
+/staticfiles/
+/mediafiles/
+
+# Database backups
+*.backup
+*.dump
+*.sql
+*.sql.gz
+
+# IDE - JetBrains (in case they're not covered)
+#.idea/
+*.iml
+*.iws
+.idea_modules/
+
+# System files
+.DS_Store
+Thumbs.db
+desktop.ini
