@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Отчет о блокировке неактивных пользователей</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header bg-warning">
+                <h2 class="text-center">Отчет о блокировке неактивных пользователей</h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info">
+                    <h4>Дата отчета: {{ date }}</h4>
+                    <p class="lead">Всего заблокировано пользователей: <strong>{{ total }}</strong></p>
+                </div>
+
+                {% if blocked_users %}
+                    <h3 class="mt-4">Список заблокированных пользователей:</h3>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Username</th>
+                                    <th>Email</th>
+                                    <th>Последний вход</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for user in blocked_users %}
+                                <tr>
+                                    <td>{{ user.user_id }}</td>
+                                    <td>{{ user.username }}</td>
+                                    <td>{{ user.email }}</td>
+                                    <td>{{ user.last_login }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="alert alert-warning mt-3">
+                        <strong>Примечание:</strong> Эти пользователи были автоматически заблокированы,
+                        так как не заходили на платформу более 30 дней.
+                    </div>
+                {% else %}
+                    <div class="alert alert-success">
+                        <p>Нет пользователей для блокировки на текущую дату.</p>
+                    </div>
+                {% endif %}
+
+                <div class="text-center mt-4">
+                    <a href="{{ site_url }}/admin/users/user/" class="btn btn-primary">
+                        Перейти в админ-панель
+                    </a>
+                </div>
+            </div>
+            <div class="card-footer text-muted text-center">
+                <small>Автоматическое уведомление от платформы обучения</small>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

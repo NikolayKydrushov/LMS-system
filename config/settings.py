@@ -11,6 +11,8 @@ https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
 import os
+
+from celery.schedules import crontab
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -41,6 +43,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    'drf_spectacular',
+    'rest_framework_simplejwt',
+    'django_filters',
     'users',
     'materials',
 ]
@@ -126,3 +131,62 @@ AUTH_USER_MODEL = 'users.User'
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+# Настройки DRF
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',  # Все эндпоинты требуют авторизации
+    ),
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+}
+
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'API для обучения',  # Название проекта
+    'DESCRIPTION': 'Документация API для платформы с курсами и уроками',  # Описание
+    'VERSION': '1.0.0',  # Версия API
+    'SERVE_INCLUDE_SCHEMA': False,
+    # Другие настройки
+    'COMPONENT_SPLIT_REQUEST': True,
+}
+
+
+# Настройки Stripe
+STRIPE_PUBLIC_KEY = os.getenv('STRIPE_PUBLIC_KEY')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+BASE_URL = os.getenv('BASE_URL', 'http://localhost:8000')
+
+REDIS_HOST = os.getenv('REDIS_HOST', 'localhost')
+REDIS_PORT = os.getenv('REDIS_PORT', '6379')
+REDIS_DB = os.getenv('REDIS_DB', '0')
+
+# URL для подключения к Redis
+CELERY_BROKER_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+CELERY_RESULT_BACKEND = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+
+CELERY_BEAT_SCHEDULE = {
+    'block-inactive-users-daily': {
+        'task': 'users.tasks.block_inactive_users',
+        'schedule': crontab(hour=3, minute=0),
+        'options': {
+            'expires': 3600,
+        }
+    },
+}
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.yandex.ru'
+EMAIL_PORT = 465
+EMAIL_USE_TLS = False
+EMAIL_USE_SSL = True
+EMAIL_HOST_USER = 'kolya29042909@yandex.ru'
+ADMIN_EMAIL = 'kolya29042909@yandex.ru'
+EMAIL_HOST_PASSWORD = 'dddxlqwyvfxhljrj'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+DEFAULT_FROM_EMAIL = 'kolya29042909@yandex.ru'
+

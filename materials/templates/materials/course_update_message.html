@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Обновление курса</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h2 class="text-center">📚 Обновление курса</h2>
+            </div>
+            <div class="card-body">
+                <div class="alert alert-info" role="alert">
+                    <h4 class="alert-heading">Здравствуйте, {{ username }}!</h4>
+                    <p>Курс <strong>"{{ course_title }}"</strong> был обновлен.</p>
+                    <hr>
+                    <p class="mb-0">В курсе появились новые материалы. Перейдите в свой личный кабинет, чтобы ознакомиться с обновлениями.</p>
+                </div>
+
+                <div class="text-center mt-4">
+                    <a href="{{ course_url }}" class="btn btn-primary btn-lg">
+                        Перейти к курсу
+                    </a>
+                </div>
+
+                <div class="mt-4 text-muted">
+                    <small>
+                        Если вы не хотите получать уведомления об этом курсе,
+                        вы можете отписаться в личном кабинете.
+                    </small>
+                </div>
+            </div>
+            <div class="card-footer text-muted text-center">
+                <small>© {{ year }} Платформа онлайн-обучения</small>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
