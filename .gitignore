@@ -225,6 +225,8 @@ Dockerfile.dev
 # Environment templates (keep .env.template, ignore everything else .env*)
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.template
 !.env.sample
 !.env.example
@@ -240,6 +242,11 @@ Dockerfile.dev
 /media/
 /staticfiles/
 /mediafiles/
+
+# Docker data directories
+/data/
+/postgres_data/
+/redis_data/
 
 # Database backups
 *.backup
