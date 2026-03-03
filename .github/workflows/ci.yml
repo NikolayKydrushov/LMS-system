@@ -78,7 +78,7 @@ jobs:
         username: ${{ secrets.SERVER_USER }}
         key: ${{ secrets.SERVER_SSH_KEY }}
         script: |
-          cd ~/LMS-system
+          cd /var/www/LMS-system || exit 1
           
           # Сохраняем текущий .env
           if [ -f .env ]; then
